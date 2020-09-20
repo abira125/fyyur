@@ -14,6 +14,7 @@ from flask_wtf import Form
 from forms import *
 import config
 from flask_migrate import Migrate
+from sqlalchemy.sql.functions import func
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -48,7 +49,24 @@ class Venue(db.Model):
     website_link = db.Column(db.String(120))
     seeking_talent = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
+    genres = db.relationship("Genre", secondary='venuegenre', backref=db.backref('venues', lazy=True))
 
+    def __init__(self):
+      pass
+
+    def format(self):
+      response_dict={}
+      # for item in col_list:
+      #   response_dict[item] = self.item
+      
+      return{
+        'id': self.id,
+        'name': self.name,
+        'city': self.city,
+        'state': self.state
+      }
+
+    
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
 class Artist(db.Model):
@@ -62,31 +80,29 @@ class Artist(db.Model):
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
     website_link = db.Column(db.String(120))
-    seeking_talent = db.Column(db.Boolean, nullable=False, default=False)
+    seeking_venue = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
+    venues = db.relationship("Venue", secondary='show', backref=db.backref('artists', lazy=True))
+    genres = db.relationship("Genre", secondary='artistgenre', backref=db.backref('artists', lazy=True))
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
-class Show(db.Model):
-    __tablename__ = 'show'
 
-    id = db.Column(db.Integer, primary_key=True)
-    venue_id = db.Column(db.Integer)
-    artist_id = db.Column(db.Integer)
-  
-class VenueGenre(db.Model):
-    __tablename__='venuegenre'
+show = db.Table('show',
+    db.Column('artist_id', db.Integer, db.ForeignKey('artist.id'), primary_key=True),
+    db.Column('venue_id', db.Integer, db.ForeignKey('venue.id'), primary_key=True)
+)
 
-    id = db.Column(db.Integer, primary_key=True)
-    venue_id = db.Column(db.Integer)
-    genre_id = db.Column(db.Integer)
-  
-class ArtistGenre(db.Model):
-    __tablename__='artistgenre'
+venuegenre = db.Table('venuegenre',
+    db.Column('venue_id', db.Integer, db.ForeignKey('venue.id'), primary_key=True),
+    db.Column('genre_id', db.Integer, db.ForeignKey('genre.id'), primary_key=True)
+)
 
-    id = db.Column(db.Integer, primary_key=True)
-    artist_id = db.Column(db.Integer)
-    genre_id = db.Column(db.Integer)
+artistgenre = db.Table('artistgenre',
+    db.Column('artist_id', db.Integer, db.ForeignKey('artist.id'), primary_key=True),
+    db.Column('genre_id', db.Integer, db.ForeignKey('genre.id'), primary_key=True)
+)
+
 
 class Genre(db.Model):
     __tablename__ = 'genre'
@@ -102,6 +118,7 @@ class Genre(db.Model):
 
 def format_datetime(value, format='medium'):
   date = dateutil.parser.parse(value)
+  # "start_time": "2019-05-21T21:30:00.000Z"
   if format == 'full':
       format="EEEE MMMM, d, y 'at' h:mma"
   elif format == 'medium':
@@ -109,6 +126,24 @@ def format_datetime(value, format='medium'):
   return babel.dates.format_datetime(date, format)
 
 app.jinja_env.filters['datetime'] = format_datetime
+
+def get_proc_data(venues_raw):
+  formatted_venues_raw = [item.format() for item in venues_raw]
+  print(venues_raw[0].artists)
+  unique_cities = set([(item['city'], item['state']) for item in formatted_venues_raw])
+  venues_proc = []
+  for city in unique_cities:
+    city_name, city_state = city[0], city[1]
+    venue_dict = {'city':city_name, 'state': city_state, 'venues':[]}
+    venues_in_city = [{'id': item["id"], 'name': item["name"]} for item in formatted_venues_raw if item['city']==city_name and item['state']==city_state]
+    venue_dict['venues'] = venues_in_city
+    venues_proc.append(venue_dict)
+
+    
+  
+  return venues_proc
+
+
 
 #----------------------------------------------------------------------------#
 # Controllers.
@@ -126,6 +161,17 @@ def index():
 def venues():
   # TODO: replace with real venues data.
   #       num_shows should be aggregated based on number of upcoming shows per venue.
+  # data = []
+  venues_raw = Venue.query.all()
+  venues_proc = get_proc_data(venues_raw)
+  print(venues_proc)
+
+  # r = db.session.query(Venue.id, Venue.name, Venue.city, Venue.state, func.count(show.venue_id).label('shows_count'))\
+  #                 .outerjoin(show, Venue.id == show.venue_id)\
+  #                 .group_by(Venue.id)
+  # print(r)
+
+  # print(type(data1[0]))
   data=[{
     "city": "San Francisco",
     "state": "CA",
@@ -518,6 +564,12 @@ def create_shows():
 def create_show_submission():
   # called to create new shows in the db, upon submitting new show listing form
   # TODO: insert form data as a new Show record in the db, instead
+  print(request.get_data())
+  print(request.form)
+  sample = request.form.to_dict()
+  print(sample)
+  print(type(sample))
+  print(sample['start_time'])
 
   # on successful db insert, flash success
   flash('Show was successfully listed!')
