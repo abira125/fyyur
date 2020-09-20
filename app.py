@@ -15,6 +15,7 @@ from forms import *
 import config
 from flask_migrate import Migrate
 from sqlalchemy.sql.functions import func
+from datetime import datetime
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -49,6 +50,7 @@ class Venue(db.Model):
     website_link = db.Column(db.String(120))
     seeking_talent = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
+    shows = db.relationship("Show", backref=db.backref('venues', lazy=True))
     genres = db.relationship("Genre", secondary='venuegenre', backref=db.backref('venues', lazy=True))
 
     def __init__(self):
@@ -63,11 +65,24 @@ class Venue(db.Model):
         'id': self.id,
         'name': self.name,
         'city': self.city,
-        'state': self.state
+        'state': self.state,
+        'shows': self.shows
       }
 
     
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
+
+class Show(db.Model): 
+    """
+    Follows association object pattern
+    """
+    __tablename__ = 'show'
+
+    venue_id = db.Column(db.Integer, db.ForeignKey('venue.id'), primary_key=True)
+    artist_id = db.Column(db.Integer, db.ForeignKey('artist.id'), primary_key=True)
+    start_time = db.Column(db.DateTime, nullable=False)
+    artists = db.relationship('Artist', backref=db.backref('shows', lazy=True))
+
 
 class Artist(db.Model):
     __tablename__ = 'artist'
@@ -82,16 +97,9 @@ class Artist(db.Model):
     website_link = db.Column(db.String(120))
     seeking_venue = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
-    venues = db.relationship("Venue", secondary='show', backref=db.backref('artists', lazy=True))
     genres = db.relationship("Genre", secondary='artistgenre', backref=db.backref('artists', lazy=True))
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
-
-show = db.Table('show',
-    db.Column('artist_id', db.Integer, db.ForeignKey('artist.id'), primary_key=True),
-    db.Column('venue_id', db.Integer, db.ForeignKey('venue.id'), primary_key=True)
-)
 
 venuegenre = db.Table('venuegenre',
     db.Column('venue_id', db.Integer, db.ForeignKey('venue.id'), primary_key=True),
@@ -127,15 +135,23 @@ def format_datetime(value, format='medium'):
 
 app.jinja_env.filters['datetime'] = format_datetime
 
+def get_num_up_shows(item):
+  print(item)
+  return len(list(filter(lambda x: x.start_time > datetime.now(), item['shows'])))
+
+
 def get_proc_data(venues_raw):
   formatted_venues_raw = [item.format() for item in venues_raw]
-  print(venues_raw[0].artists)
+  # print(formatted_venues_raw[0])
+  # print(venues_raw[0].shows[0].artists)
   unique_cities = set([(item['city'], item['state']) for item in formatted_venues_raw])
   venues_proc = []
   for city in unique_cities:
     city_name, city_state = city[0], city[1]
     venue_dict = {'city':city_name, 'state': city_state, 'venues':[]}
-    venues_in_city = [{'id': item["id"], 'name': item["name"]} for item in formatted_venues_raw if item['city']==city_name and item['state']==city_state]
+    # , "num_upcoming_shows": len(item.shows.start_time > datetime.now())
+    # len(list(filter(lambda x: x.start_time > datetime.now(), item.shows)))
+    venues_in_city = [{'id': item["id"], 'name': item["name"], 'num_upcoming_shows': get_num_up_shows(item)} for item in formatted_venues_raw if item['city']==city_name and item['state']==city_state]
     venue_dict['venues'] = venues_in_city
     venues_proc.append(venue_dict)
 
@@ -163,36 +179,41 @@ def venues():
   #       num_shows should be aggregated based on number of upcoming shows per venue.
   # data = []
   venues_raw = Venue.query.all()
-  venues_proc = get_proc_data(venues_raw)
-  print(venues_proc)
+  # venues_proc = get_proc_data(venues_raw)
+  # print(venues_proc)
 
-  # r = db.session.query(Venue.id, Venue.name, Venue.city, Venue.state, func.count(show.venue_id).label('shows_count'))\
-  #                 .outerjoin(show, Venue.id == show.venue_id)\
-  #                 .group_by(Venue.id)
+  data = get_proc_data(venues_raw)
+  print(data)
+
+  # .filter(Show.start_time > datetime.now())\
+  # r = db.session.query(Venue.id, Venue.name, Venue.city, Venue.state, func.count(Show.venue_id).label('shows_count'))\
+  #                 .outerjoin(Show, Venue.id == Show.venue_id)\
+  #                 .group_by(Venue.id).all()
+      
   # print(r)
 
   # print(type(data1[0]))
-  data=[{
-    "city": "San Francisco",
-    "state": "CA",
-    "venues": [{
-      "id": 1,
-      "name": "The Musical Hop",
-      "num_upcoming_shows": 0,
-    }, {
-      "id": 3,
-      "name": "Park Square Live Music & Coffee",
-      "num_upcoming_shows": 1,
-    }]
-  }, {
-    "city": "New York",
-    "state": "NY",
-    "venues": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }]
+  # data=[{
+  #   "city": "San Francisco",
+  #   "state": "CA",
+  #   "venues": [{
+  #     "id": 1,
+  #     "name": "The Musical Hop",
+  #     "num_upcoming_shows": 0,
+  #   }, {
+  #     "id": 3,
+  #     "name": "Park Square Live Music & Coffee",
+  #     "num_upcoming_shows": 1,
+  #   }]
+  # }, {
+  #   "city": "New York",
+  #   "state": "NY",
+  #   "venues": [{
+  #     "id": 2,
+  #     "name": "The Dueling Pianos Bar",
+  #     "num_upcoming_shows": 0,
+  #   }]
+  # }]
   return render_template('pages/venues.html', areas=data);
 
 @app.route('/venues/search', methods=['POST'])
