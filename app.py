@@ -17,6 +17,7 @@ import config
 from flask_migrate import Migrate
 from sqlalchemy.sql.functions import func
 from datetime import datetime
+import traceback
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -52,15 +53,20 @@ class Venue(db.Model):
     seeking_talent = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
     shows = db.relationship("Show", backref=db.backref('venues', lazy=True))
-    genres = db.relationship("Genre", secondary='venuegenre', backref=db.backref('venues', lazy=True))
+    genres = db.relationship("VenueGenre", backref=db.backref('venues', lazy=True))
 
-    def __init__(self, name, city, state, address, phone,facebook_link):
-      self.name = name,
-      self.city = city,
-      self.state = state,
-      self.address = address,
-      self.phone = phone,
+    def __init__(self, name, city, state, address, phone, facebook_link,\
+                 website_link, image_link, seeking_talent, seeking_description):
+      self.name = name
+      self.city = city
+      self.state = state
+      self.address = address
+      self.phone = phone
       self.facebook_link = facebook_link
+      self.website_link = website_link
+      self.image_link = image_link
+      self.seeking_talent = seeking_talent
+      self.seeking_description = seeking_description
 
     def format(self):
       venue_dict = []
@@ -141,9 +147,12 @@ class Venue(db.Model):
         raise e
       return venue_dict
 
-    def create(self):
+    def create(self, genres):
       is_created = False
       try:
+        for genre in genres:
+          vg = VenueGenre(name=genre)
+          self.genres.append(vg)
         db.session.add(self)
         db.session.commit()
         is_created = True
@@ -184,26 +193,35 @@ class Artist(db.Model):
     website_link = db.Column(db.String(120))
     seeking_venue = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
-    genres = db.relationship("Genre", secondary='artistgenre', backref=db.backref('artists', lazy=True))
+    genres = db.relationship("ArtistGenre", backref=db.backref('artists', lazy=True))
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
-venuegenre = db.Table('venuegenre',
-    db.Column('venue_id', db.Integer, db.ForeignKey('venue.id', ondelete='CASCADE'), primary_key=True),
-    db.Column('genre_id', db.Integer, db.ForeignKey('genre.id', ondelete='CASCADE'), primary_key=True)
-)
+# venuegenre = db.Table('venuegenre',
+#     db.Column('venue_id', db.Integer, db.ForeignKey('venue.id', ondelete='CASCADE'), primary_key=True),
+#     db.Column('genre_id', db.Integer, db.ForeignKey('genre.id', ondelete='CASCADE'), primary_key=True)
+# )
 
-artistgenre = db.Table('artistgenre',
-    db.Column('artist_id', db.Integer, db.ForeignKey('artist.id', ondelete='CASCADE'), primary_key=True),
-    db.Column('genre_id', db.Integer, db.ForeignKey('genre.id', ondelete='CASCADE'), primary_key=True)
-)
+# artistgenre = db.Table('artistgenre',
+#     db.Column('artist_id', db.Integer, db.ForeignKey('artist.id', ondelete='CASCADE'), primary_key=True),
+#     db.Column('genre_id', db.Integer, db.ForeignKey('genre.id', ondelete='CASCADE'), primary_key=True)
+# )
 
+class VenueGenre(db.Model):
+    __tablename__ = 'venuegenre'
+    venue_id = db.Column(db.Integer, db.ForeignKey('venue.id', ondelete='CASCADE'), primary_key=True)
+    name = db.Column(db.String(30), nullable=False, primary_key=True)
 
-class Genre(db.Model):
-    __tablename__ = 'genre'
+class ArtistGenre(db.Model):
+    __tablename__ = 'artistgenre'
+    artist_id = db.Column(db.Integer, db.ForeignKey('artist.id', ondelete='CASCADE'), primary_key=True)
+    name = db.Column(db.String(30), nullable=False, primary_key=True)
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(30), nullable=False)
+# class Genre(db.Model):
+#     __tablename__ = 'genre'
+
+#     id = db.Column(db.Integer, primary_key=True)
+#     name = db.Column(db.String(30), nullable=False)
 
 # TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
@@ -320,22 +338,29 @@ def create_venue_submission():
     request.get_data()
     # print(request.form)
     print(request.form)
-    print(request.form['genres'])
-    print(request.form['genres'])
-    print(request.form.getlist('genres'))
-    genres = [value for key,value in request.form.items() if key=="genres"]
+    genres = request.form.getlist('genres')
     print(genres)
     venue_dict = request.form.to_dict()
     print(venue_dict)
+    seeking_talent = venue_dict['seeking_talent'] == "True"
+    print(seeking_talent)
+    print(type(seeking_talent))
     venue = Venue(name=venue_dict['name'], city=venue_dict['city'], state=venue_dict['state'],\
-                  address=venue_dict['address'], phone=venue_dict['phone'],facebook_link=venue_dict['facebook_link'])
-    created = venue.create()
+                  address=venue_dict['address'], phone=venue_dict['phone'],\
+                  facebook_link=venue_dict['facebook_link'],\
+                  website_link=venue_dict['website_link'], image_link=venue_dict['image_link'],\
+                  seeking_talent=seeking_talent, seeking_description=venue_dict['seeking_description'])
+    # genres=genres,
+    created = venue.create(genres)
     if created:
       flash('Venue ' + request.form['name'] + ' was successfully listed!')
   except Exception as e:
     print("Error while creating new venue: ", e)
-    print(sys.exc_info())
-    flash('An error occurred. Venue ' + venue_dict['name'] + ' could not be listed.')
+    # print(sys.exc_info())
+    print(traceback.format_exc())
+    # traceback.print_tb(e.__traceback__)
+    flash('An error occurred. Venue ' + request.form['name'] + ' could not be listed.')
+    abort(500)
   
   
  

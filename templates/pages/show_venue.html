@@ -43,7 +43,8 @@
 		{% endif %}
 	</div>
 	<div class="col-sm-6">
-		<img src="{{ venue.image_link }}" alt="Venue Image" />
+		{%if venue.image_link!='' %}<img src="{{ venue.image_link }}" alt="Venue Image" />
+		{% else %}<h2 class="monospace">No image Found</h2>{%endif%}
 	</div>
 </div>
 <section>
