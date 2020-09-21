@@ -67,22 +67,7 @@ class Venue(db.Model):
       self.image_link = image_link
       self.seeking_talent = seeking_talent
       self.seeking_description = seeking_description
-
-    def format(self):
-      venue_dict = []
-      try:
-        venue_dict = {
-        'id': self.id,
-        'name': self.name,
-        'city': self.city,
-        'state': self.state,
-        'shows': self.shows
-      }
-      except Exception as e:
-        raise e
-      return venue_dict
       
-    
     def get_past_shows(self):
       shows = []
       try:
@@ -162,9 +147,6 @@ class Venue(db.Model):
       finally:
         db.session.close()
       return is_created
-         
-
-
     
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
@@ -197,16 +179,6 @@ class Artist(db.Model):
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
-# venuegenre = db.Table('venuegenre',
-#     db.Column('venue_id', db.Integer, db.ForeignKey('venue.id', ondelete='CASCADE'), primary_key=True),
-#     db.Column('genre_id', db.Integer, db.ForeignKey('genre.id', ondelete='CASCADE'), primary_key=True)
-# )
-
-# artistgenre = db.Table('artistgenre',
-#     db.Column('artist_id', db.Integer, db.ForeignKey('artist.id', ondelete='CASCADE'), primary_key=True),
-#     db.Column('genre_id', db.Integer, db.ForeignKey('genre.id', ondelete='CASCADE'), primary_key=True)
-# )
-
 class VenueGenre(db.Model):
     __tablename__ = 'venuegenre'
     venue_id = db.Column(db.Integer, db.ForeignKey('venue.id', ondelete='CASCADE'), primary_key=True)
@@ -216,12 +188,6 @@ class ArtistGenre(db.Model):
     __tablename__ = 'artistgenre'
     artist_id = db.Column(db.Integer, db.ForeignKey('artist.id', ondelete='CASCADE'), primary_key=True)
     name = db.Column(db.String(30), nullable=False, primary_key=True)
-
-# class Genre(db.Model):
-#     __tablename__ = 'genre'
-
-#     id = db.Column(db.Integer, primary_key=True)
-#     name = db.Column(db.String(30), nullable=False)
 
 # TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
@@ -284,7 +250,7 @@ def venues():
     return render_template('pages/venues.html', areas=data);
   except Exception as e:
     print("Error occurred while fetching venues: ",e)
-    print(sys.exc_info())
+    print(traceback.format_exc())
     abort(500) 
     
 
@@ -312,14 +278,10 @@ def show_venue(venue_id):
     if result is None:
       print("No result for found for venue id {}".format(venue_id))
       abort(404)
-    # print(result[0].format_all())
-    # print(result[0].get_past_shows())
-    # print('===========================')
-    # print(result[0].get_future_shows())
     data = result[0].format_all()
   except Exception as e:
     print("Error occured while fetching data for venue ", e)
-    print(sys.exc_info())
+    print(traceback.format_exc())
     abort(500)
   
   return render_template('pages/show_venue.html', venue=data)
@@ -336,29 +298,20 @@ def create_venue_form():
 def create_venue_submission():
   try:
     request.get_data()
-    # print(request.form)
-    print(request.form)
     genres = request.form.getlist('genres')
-    print(genres)
     venue_dict = request.form.to_dict()
-    print(venue_dict)
     seeking_talent = venue_dict['seeking_talent'] == "True"
-    print(seeking_talent)
-    print(type(seeking_talent))
     venue = Venue(name=venue_dict['name'], city=venue_dict['city'], state=venue_dict['state'],\
                   address=venue_dict['address'], phone=venue_dict['phone'],\
                   facebook_link=venue_dict['facebook_link'],\
                   website_link=venue_dict['website_link'], image_link=venue_dict['image_link'],\
                   seeking_talent=seeking_talent, seeking_description=venue_dict['seeking_description'])
-    # genres=genres,
     created = venue.create(genres)
     if created:
       flash('Venue ' + request.form['name'] + ' was successfully listed!')
   except Exception as e:
     print("Error while creating new venue: ", e)
-    # print(sys.exc_info())
     print(traceback.format_exc())
-    # traceback.print_tb(e.__traceback__)
     flash('An error occurred. Venue ' + request.form['name'] + ' could not be listed.')
     abort(500)
   
