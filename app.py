@@ -40,8 +40,7 @@ migrate = Migrate(app, db)
 class Venue(db.Model):
     __tablename__ = 'venue'
 
-    id = db.Column(db.Integer, 
-                 db.Sequence('venue_id_seq', start=4, increment=1), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
     city = db.Column(db.String(120))
     state = db.Column(db.String(120))
