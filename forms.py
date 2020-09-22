@@ -228,6 +228,7 @@ class ArtistForm(Form):
             ('Reggae', 'Reggae'),
             ('Rock n Roll', 'Rock n Roll'),
             ('Soul', 'Soul'),
+            ('Swing', 'Swing'),
             ('Other', 'Other'),
         ]
     )
@@ -242,6 +243,16 @@ class ArtistForm(Form):
     image_link = StringField(
         # TODO implement enum restriction
         'image_link', validators=[URL()]
+    )
+    seeking_venue = SelectField(
+        'seeking_venue', validators=[DataRequired()],
+        choices=[
+            (False,'No'),
+            (True, 'Yes')
+        ]
+    )
+    seeking_description = StringField(
+        'seeking_description'
     )
 
 # TODO IMPLEMENT NEW ARTIST FORM AND NEW SHOW FORM
