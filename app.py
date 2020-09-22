@@ -421,10 +421,18 @@ def delete_venue(venue_id):
 @app.route('/artists')
 def artists():
   # TODO: replace with real data returned from querying the database
-  result = Artist.query.with_entities(Artist.id,Artist.name).all()
-  data = get_artists(result)
-  print(data)
-  return render_template('pages/artists.html', artists=data)
+  try:
+    result = Artist.query.with_entities(Artist.id,Artist.name).all()
+    if len(result) == 0:
+      print("No results found")
+      abort(404)
+    data = get_artists(result)
+    return render_template('pages/artists.html', artists=data)
+  except Exception as e:
+    print("Error occured while fetching artists", e)
+    print(traceback.format_exc())
+    abort(500)
+  
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
@@ -447,12 +455,10 @@ def show_artist(artist_id):
   # TODO: replace with real venue data from the venues table, using venue_id
   try:
     result = Artist.query.filter_by(id=artist_id).all()
-    print(result)
     if len(result) == 0:
       print("No result for found for artist id {}".format(artist_id))
       abort(404) 
     data = result[0].format_all()
-    print(data)
     return render_template('pages/show_artist.html', artist=data)
   except Exception as e:
     print("Error occured while fetching artist", e)
