@@ -339,15 +339,30 @@ def search_venues():
   # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
   # seach for Hop should return "The Musical Hop".
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
-  response={
-    "count": 1,
-    "data": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }
-  return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
+  try:
+    search_term = request.form.get('search_term', '')
+    results = Venue.query.order_by(Venue.id).filter(Venue.name.ilike('%{}%'.format(search_term))).all()
+    match_count = len(results)
+    if match_count == 0:
+      response = {
+        "count": match_count,
+        "data": []
+      }
+    else:
+      response = {
+        "count": len(results),
+        "data": [{"id":venue.id,\
+                  "name": venue.name,\
+                  "num_upcoming_shows": len(venue.get_future_shows())}\
+                  for venue in results]
+      }
+    print(response)
+    return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
+  except Exception as e:
+    print("Error occurred while seraching for venues: ",e)
+    print(traceback.format_exc())
+    abort(500)
+  
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
@@ -439,15 +454,29 @@ def search_artists():
   # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
   # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
   # search for "band" should return "The Wild Sax Band".
-  response={
-    "count": 1,
-    "data": [{
-      "id": 4,
-      "name": "Guns N Petals",
-      "num_upcoming_shows": 0,
-    }]
-  }
-  return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
+  try:
+    search_term = request.form.get('search_term', '')
+    results = Artist.query.order_by(Artist.id).filter(Artist.name.ilike('%{}%'.format(search_term))).all()
+    match_count = len(results)
+    if match_count == 0:
+      response = {
+        "count": match_count,
+        "data": []
+      }
+    else:
+      response = {
+        "count": len(results),
+        "data": [{"id":artist.id,\
+                  "name": artist.name,\
+                  "num_upcoming_shows": len(artist.get_future_shows())}\
+                  for artist in results]
+      }
+    print(response)
+    return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
+  except Exception as e:
+    print("Error occurred while seraching for artists: ",e)
+    print(traceback.format_exc())
+    abort(500)
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
