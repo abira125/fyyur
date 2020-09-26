@@ -53,7 +53,7 @@ class Venue(db.Model):
     seeking_talent = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
     shows = db.relationship("Show", backref=db.backref('venues', lazy=True))
-    genres = db.relationship("VenueGenre", backref=db.backref('venues', lazy=True))
+    genres = db.relationship("VenueGenre", backref=db.backref('venues', lazy=True)) #, passive_deletes=True
 
     def __init__(self, name, city, state, address, phone, facebook_link,\
                  website_link, image_link, seeking_talent, seeking_description):
@@ -308,6 +308,7 @@ def get_artists(artists_raw):
 
 
 
+
 #----------------------------------------------------------------------------#
 # Controllers.
 #----------------------------------------------------------------------------#
@@ -526,28 +527,88 @@ def edit_artist_submission(artist_id):
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
   form = VenueForm()
-  venue={
-    "id": 1,
-    "name": "The Musical Hop",
-    "genres": ["Jazz", "Reggae", "Swing", "Classical", "Folk"],
-    "address": "1015 Folsom Street",
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "123-123-1234",
-    "website": "https://www.themusicalhop.com",
-    "facebook_link": "https://www.facebook.com/TheMusicalHop",
-    "seeking_talent": True,
-    "seeking_description": "We are on the lookout for a local artist to play every two weeks. Please call us.",
-    "image_link": "https://images.unsplash.com/photo-1543900694-133f37abaaa5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=400&q=60"
-  }
-  # TODO: populate form with values from venue with ID <venue_id>
-  return render_template('forms/edit_venue.html', form=form, venue=venue)
+  try:
+    result = Venue.query.filter_by(id=venue_id).all()
+    if len(result) == 0 :
+      print("No result for found for venue id {}".format(venue_id))
+      abort(404)
+    data = result[0].format_all()
+    venue = {
+      "id": data["id"],
+      "name": data["name"],
+      "genres": data["genres"],
+      "address": data["address"],
+      "city": data["city"],
+      "state": data["state"],
+      "phone": data["phone"],
+      "website": data["website"],
+      "facebook_link": data["facebook_link"],
+      "seeking_talent": data["seeking_talent"],
+      "seeking_description": data["seeking_description"],
+      "image_link": data["image_link"]
+    }
+    # TODO: populate form with values from venue with ID <venue_id>
+    print(venue)
+    return render_template('forms/edit_venue.html', form=form, venue=venue)
+  except Exception as e:
+    print("Error occured while fetching data for venue ", e)
+    print(traceback.format_exc())
+    abort(500)
+
+
+def update_genres_venue(new_genres, venue):
+  try:
+    common_genres = []    # common between edit form and existing records  
+    
+    # step 1: delete 
+    for genre in venue.genres:
+      if genre.name in new_genres:
+        common_genres.append(genre.name)
+      else:
+        db.session.delete(genre)
+
+    # step 2: add new
+    new_uncommon_genres = list(set(new_genres) - set(common_genres))
+    for genre in new_uncommon_genres:
+      vg = VenueGenre(venue_id=venue.id, name=genre)
+      db.session.add(vg)
+
+  except Exception as e:
+    raise e
+
 
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
   # TODO: take values from the form submitted, and update existing
   # venue record with ID <venue_id> using the new attributes
-  return redirect(url_for('show_venue', venue_id=venue_id))
+
+  
+  try:
+      #get data from request
+      request.get_data()
+      new_genres = request.form.getlist('genres')
+      venue_dict = request.form.to_dict()
+
+      # get the record to update
+      venue = Venue.query.get(venue_id)
+
+      # update
+      venue.name = venue_dict["name"]
+      venue.city = venue_dict["city"]
+      venue.state = venue_dict["state"]
+      venue.address = venue_dict["address"]
+      venue.phone = venue_dict["phone"]
+      venue.facebook_link = venue_dict["facebook_link"]
+      update_genres_venue(new_genres, venue)
+      db.session.commit()
+      return redirect(url_for('show_venue', venue_id=venue_id))
+  except Exception as e:
+    print("Error in updating records",e)
+    db.session.rollback()
+    print(traceback.format_exc())
+    abort(500)
+  finally:
+    db.session.close()
 
 #  Create Artist
 #  ----------------------------------------------------------------
