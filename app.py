@@ -275,6 +275,11 @@ def format_datetime(value, format='medium'):
 app.jinja_env.filters['datetime'] = format_datetime
 
 
+#----------------------------------------------------------------------------#
+# Utils.
+#----------------------------------------------------------------------------#
+
+
 def get_venues(venues_raw):
   venues = []
   try:
@@ -305,6 +310,27 @@ def get_artists(artists_raw):
   except Exception as e:
     raise e
   return artists
+
+
+def update_genres_venue(new_genres, venue):
+  try:
+    common_genres = []    # common between edit form and existing records  
+    
+    # step 1: delete 
+    for genre in venue.genres:
+      if genre.name in new_genres:
+        common_genres.append(genre.name)
+      else:
+        db.session.delete(genre)
+
+    # step 2: add new
+    new_uncommon_genres = list(set(new_genres) - set(common_genres))
+    for genre in new_uncommon_genres:
+      vg = VenueGenre(venue_id=venue.id, name=genre)
+      db.session.add(vg)
+
+  except Exception as e:
+    raise e
 
 
 
@@ -556,35 +582,12 @@ def edit_venue(venue_id):
     abort(500)
 
 
-def update_genres_venue(new_genres, venue):
-  try:
-    common_genres = []    # common between edit form and existing records  
-    
-    # step 1: delete 
-    for genre in venue.genres:
-      if genre.name in new_genres:
-        common_genres.append(genre.name)
-      else:
-        db.session.delete(genre)
-
-    # step 2: add new
-    new_uncommon_genres = list(set(new_genres) - set(common_genres))
-    for genre in new_uncommon_genres:
-      vg = VenueGenre(venue_id=venue.id, name=genre)
-      db.session.add(vg)
-
-  except Exception as e:
-    raise e
-
-
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
   # TODO: take values from the form submitted, and update existing
   # venue record with ID <venue_id> using the new attributes
-
-  
   try:
-      #get data from request
+      # get data from request
       request.get_data()
       new_genres = request.form.getlist('genres')
       venue_dict = request.form.to_dict()
@@ -601,6 +604,7 @@ def edit_venue_submission(venue_id):
       venue.facebook_link = venue_dict["facebook_link"]
       update_genres_venue(new_genres, venue)
       db.session.commit()
+      flash('Venue ' + request.form['name'] + ' was successfully edited!')
       return redirect(url_for('show_venue', venue_id=venue_id))
   except Exception as e:
     print("Error in updating records",e)
