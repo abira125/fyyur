@@ -179,8 +179,17 @@ class Artist(db.Model):
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
-    def __init__(self):
-      pass
+    def __init__(self, name, city, state, phone, facebook_link,\
+                 website_link, image_link, seeking_venue, seeking_description):
+      self.name = name
+      self.city = city
+      self.state = state
+      self.phone = phone
+      self.facebook_link = facebook_link
+      self.website_link = website_link
+      self.image_link = image_link
+      self.seeking_venue = seeking_venue
+      self.seeking_description = seeking_description
 
     def get_future_shows(self):
       future_shows = []
@@ -244,6 +253,22 @@ class Artist(db.Model):
       except Exception as e:
         raise e
       return artist_dict
+
+    def create(self, genres):
+      is_created = False
+      try:
+        for genre in genres:
+          ag = ArtistGenre(name=genre)
+          self.genres.append(ag)
+        db.session.add(self)
+        db.session.commit()
+        is_created = True
+      except Exception as e:
+        db.session.rollback()
+        raise e
+      finally:
+        db.session.close()
+      return is_created
 
 
 
@@ -629,9 +654,29 @@ def create_artist_submission():
   # TODO: modify data to be the data object returned from db insertion
 
   # on successful db insert, flash success
-  flash('Artist ' + request.form['name'] + ' was successfully listed!')
+  # flash('Artist ' + request.form['name'] + ' was successfully listed!')
   # TODO: on unsuccessful db insert, flash an error instead.
   # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
+
+  try:
+    request.get_data()
+    genres = request.form.getlist('genres')
+    artist_dict = request.form.to_dict()
+    seeking_venue = artist_dict['seeking_venue'] == "True"
+    artist = Artist(name=artist_dict['name'], city=artist_dict['city'], state=artist_dict['state'],\
+                  phone=artist_dict['phone'],\
+                  facebook_link=artist_dict['facebook_link'],\
+                  website_link=artist_dict['website_link'], image_link=artist_dict['image_link'],\
+                  seeking_venue=seeking_venue, seeking_description=artist_dict['seeking_description'])
+    created = artist.create(genres)
+    if created:
+      flash('artist ' + request.form['name'] + ' was successfully listed!')
+  except Exception as e:
+    print("Error while creating new artist: ", e)
+    print(traceback.format_exc())
+    flash('An error occurred. artist ' + request.form['name'] + ' could not be listed.')
+    abort(500)
+
   return render_template('pages/home.html')
 
 
