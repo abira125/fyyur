@@ -11,7 +11,7 @@
 			<br><br><br>
 		</div>
 		<div id="delete_venue">
-			<a href="{{ url_for('delete_venue', venue_id=venue.id) }}"><button class="btn btn-default btn-lg">Delete Venue</button></a>
+			<button id="delete_button"  data-id="{{ venue.id }}" class="btn btn-default btn-lg">Delete Venue</button></a>
 			<br><br><br>
 		</div>
 		<p class="subtitle">
@@ -83,6 +83,36 @@
 		{% endfor %}
 	</div>
 </section>
+<script>
+	document.getElementById("delete_button").onclick = (e) => {
+		console.log(e);
+		const venueId = e.target.dataset["id"];
+		fetch("/venues/"+venueId, {
+			method: "DELETE" 
+		})
+		.then(response => {
+			if (!response.ok) {
+				// console.log(response);
+            	throw Error(response.text);
+        	}
+
+			// console.log(response);	
+			// if(response.redirected){
+			// 	window.location.replace(response.url);
+			// }
+			// else{
+			// 	console.log("here");
+			// 	throw Error(response.text);
+			// }
+			// console.log("here");
+			// throw Error(response.text);
+		})
+		.catch((response)=>{
+			console.log(response);
+			// window.location.replace("../errors/500.html")
+		})
+	}
+</script>
 
 {% endblock %}
 

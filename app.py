@@ -6,7 +6,7 @@ import sys
 import json
 import dateutil.parser
 import babel
-from flask import Flask, render_template, request, Response, flash, redirect, url_for, abort
+from flask import Flask, render_template, request, Response, flash, redirect, url_for, abort, make_response
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 import logging
@@ -53,7 +53,7 @@ class Venue(db.Model):
     seeking_talent = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
     shows = db.relationship("Show", backref=db.backref('venues', lazy=True))
-    genres = db.relationship("VenueGenre", backref=db.backref('venues', lazy=True)) #, passive_deletes=True
+    genres = db.relationship("VenueGenre", backref=db.backref('venues', lazy=True), passive_deletes=True) #, passive_deletes=True
 
     def __init__(self, name, city, state, address, phone, facebook_link,\
                  website_link, image_link, seeking_talent, seeking_description):
@@ -501,19 +501,18 @@ def delete_venue(venue_id):
   # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
   # clicking that button delete it from the db then redirect the user to the homepage
   try:
-    print("here")
-    venue = Venue.query.get(id=venue_id)
+    venue = Venue.query.get(venue_id)
     db.session.delete(venue)
+    1/0
     db.session.commit()
-    flash('Venue '+venue.name+'deleted successfully')
-    return url_for('venues')
-    
+    return redirect(url_for('venues'),303)
   except Exception as e:
     flash('Error occured while deleting venue ' + venue.name)
     print("Error in deleting venue:: ",e)
     print(traceback.format_exc())
     db.session.rollback()
-    abort(500)
+    print("here")
+    return make_response(render_template('errors/500.html'),500)
   finally:
     db.session.close() 
 
