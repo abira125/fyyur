@@ -357,6 +357,25 @@ def update_genres_venue(new_genres, venue):
   except Exception as e:
     raise e
 
+def update_genres_artist(new_genres, artist):
+  try:
+    common_genres = []    # common between edit form and existing records  
+    
+    # step 1: delete 
+    for genre in artist.genres:
+      if genre.name in new_genres:
+        common_genres.append(genre.name)
+      else:
+        db.session.delete(genre)
+
+    # step 2: add new
+    new_uncommon_genres = list(set(new_genres) - set(common_genres))
+    for genre in new_uncommon_genres:
+      ag = ArtistGenre(artist_id=artist.id, name=genre)
+      db.session.add(ag)
+
+  except Exception as e:
+    raise e
 
 
 
@@ -552,28 +571,66 @@ def show_artist(artist_id):
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
   form = ArtistForm()
-  artist={
-    "id": 4,
-    "name": "Guns N Petals",
-    "genres": ["Rock n Roll"],
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "326-123-5000",
-    "website": "https://www.gunsnpetalsband.com",
-    "facebook_link": "https://www.facebook.com/GunsNPetals",
-    "seeking_venue": True,
-    "seeking_description": "Looking for shows to perform at in the San Francisco Bay Area!",
-    "image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80"
-  }
-  # TODO: populate form with fields from artist with ID <artist_id>
-  return render_template('forms/edit_artist.html', form=form, artist=artist)
+  try:
+    result = Artist.query.filter_by(id=artist_id).all()
+    if len(result) == 0 :
+      print("No result for found for artist id {}".format(artist_id))
+      abort(404)
+    data = result[0].format_all()
+    artist = {
+      "id": data["id"],
+      "name": data["name"],
+      "genres": data["genres"],
+      "city": data["city"],
+      "state": data["state"],
+      "phone": data["phone"],
+      "website": data["website"],
+      "facebook_link": data["facebook_link"],
+      "seeking_venue": data["seeking_venue"],
+      "seeking_description": data["seeking_description"],
+      "image_link": data["image_link"]
+    }
+    # TODO: populate form with values from artist with ID <artist_id>
+    print(artist)
+    return render_template('forms/edit_artist.html', form=form, artist=artist)
+  except Exception as e:
+    print("Error occured while fetching data for artist ", e)
+    print(traceback.format_exc())
+    abort(500)
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
   # TODO: take values from the form submitted, and update existing
   # artist record with ID <artist_id> using the new attributes
+   # TODO: take values from the form submitted, and update existing
+  # artist record with ID <artist_id> using the new attributes
+  try:
+      # get data from request
+      request.get_data()
+      new_genres = request.form.getlist('genres')
+      artist_dict = request.form.to_dict()
 
-  return redirect(url_for('show_artist', artist_id=artist_id))
+      # get the record to update
+      artist = Artist.query.get(artist_id)
+
+      # update
+      artist.name = artist_dict["name"]
+      artist.city = artist_dict["city"]
+      artist.state = artist_dict["state"]
+      artist.phone = artist_dict["phone"]
+      artist.facebook_link = artist_dict["facebook_link"]
+      update_genres_artist(new_genres, artist)
+      db.session.commit()
+      flash('Artist ' + request.form['name'] + ' was successfully edited!')
+      return redirect(url_for('show_artist', artist_id=artist_id))
+  except Exception as e:
+    print("Error in updating records",e)
+    db.session.rollback()
+    print(traceback.format_exc())
+    abort(500)
+  finally:
+    db.session.close()
+
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
