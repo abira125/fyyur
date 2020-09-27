@@ -161,9 +161,11 @@ class Show(db.Model):
     start_time = db.Column(db.DateTime, primary_key=True)
     artists = db.relationship('Artist', backref=db.backref('shows', lazy=True))
 
-    def __init__(self):
-      pass
-
+    def __init__(self, venue_id, artist_id, start_time):
+      self.venue_id = venue_id
+      self.artist_id = artist_id
+      self.start_time = start_time
+      
     def get_show_dict(self):
       show_dict = {}
       try:
@@ -179,6 +181,15 @@ class Show(db.Model):
         raise e
       return show_dict
 
+    def create(self):
+      try:
+        db.session.add(self)
+        db.session.commit()
+      except Exception as e:
+        db.session.rollback()
+        raise e
+      finally:
+        db.session.close()
 
 class Artist(db.Model):
     __tablename__ = 'artist'
@@ -837,13 +848,22 @@ def create_shows():
 def create_show_submission():
   # called to create new shows in the db, upon submitting new show listing form
   # TODO: insert form data as a new Show record in the db, instead
-  print(request.get_data())
-  print(request.form)
-  sample = request.form.to_dict()
-  print(sample)
-  print(type(sample))
-  print(sample['start_time'])
 
+  try:
+    request.get_data()
+    show_dict = request.form.to_dict()
+    print(show_dict)
+    show = Show(venue_id=show_dict["venue_id"], artist_id=show_dict["artist_id"], start_time=show_dict["start_time"])
+    show.create()
+    flash('Show was successfully listed!')  
+  except Exception as e:
+    print("Error in creating new show: ", e)
+    print(traceback.format_exc())
+    flash('An error occurred. Show could not be listed.')
+    abort(500)
+  
+  return render_template('pages/home.html')
+  
   # on successful db insert, flash success
   flash('Show was successfully listed!')
   # TODO: on unsuccessful db insert, flash an error instead.
