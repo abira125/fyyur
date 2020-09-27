@@ -158,8 +158,26 @@ class Show(db.Model):
 
     venue_id = db.Column(db.Integer, db.ForeignKey('venue.id', ondelete='CASCADE'), primary_key=True)
     artist_id = db.Column(db.Integer, db.ForeignKey('artist.id', ondelete='CASCADE'), primary_key=True)
-    start_time = db.Column(db.DateTime, nullable=False)
+    start_time = db.Column(db.DateTime, primary_key=True)
     artists = db.relationship('Artist', backref=db.backref('shows', lazy=True))
+
+    def __init__(self):
+      pass
+
+    def get_show_dict(self):
+      show_dict = {}
+      try:
+        show_dict = {
+          "venue_id": self.venue_id,
+          "venue_name": self.venues.name,
+          "artist_id": self.artist_id,
+          "artist_name": self.artists.name,
+          "artist_image_link": self.artists.image_link,
+          "start_time": self.start_time.isoformat() 
+        }
+      except Exception as e:
+        raise e
+      return show_dict
 
 
 class Artist(db.Model):
@@ -480,9 +498,7 @@ def create_venue_submission():
     print(traceback.format_exc())
     flash('An error occurred. Venue ' + request.form['name'] + ' could not be listed.')
     abort(500)
-  
-  
- 
+  return render_template('pages/home.html')
   # TODO: insert form data as a new Venue record in the db, instead
   # TODO: modify data to be the data object returned from db insertion
 
@@ -491,7 +507,7 @@ def create_venue_submission():
   # # TODO: on unsuccessful db insert, flash an error instead.
   # # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
   # # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-  return render_template('pages/home.html')
+  
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
@@ -503,16 +519,15 @@ def delete_venue(venue_id):
   try:
     venue = Venue.query.get(venue_id)
     db.session.delete(venue)
-    1/0
     db.session.commit()
-    return redirect(url_for('venues'),303)
+    flash('Deleted venue '+venue.name+' successfully!')
+    return render_template('pages/home.html')
   except Exception as e:
     flash('Error occured while deleting venue ' + venue.name)
     print("Error in deleting venue:: ",e)
     print(traceback.format_exc())
     db.session.rollback()
-    print("here")
-    return make_response(render_template('errors/500.html'),500)
+    abort(500)
   finally:
     db.session.close() 
 
@@ -759,42 +774,57 @@ def shows():
   # displays list of shows at /shows
   # TODO: replace with real venues data.
   #       num_shows should be aggregated based on number of upcoming shows per venue.
-  data=[{
-    "venue_id": 1,
-    "venue_name": "The Musical Hop",
-    "artist_id": 4,
-    "artist_name": "Guns N Petals",
-    "artist_image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80",
-    "start_time": "2019-05-21 21:30:00.000"
-  }, {
-    "venue_id": 3,
-    "venue_name": "Park Square Live Music & Coffee",
-    "artist_id": 5,
-    "artist_name": "Matt Quevedo",
-    "artist_image_link": "https://images.unsplash.com/photo-1495223153807-b916f75de8c5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=334&q=80",
-    "start_time": "2019-06-15 23:00:00.000"
-  }, {
-    "venue_id": 3,
-    "venue_name": "Park Square Live Music & Coffee",
-    "artist_id": 6,
-    "artist_name": "The Wild Sax Band",
-    "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    "start_time": "2035-04-01 20:00:00.000"
-  }, {
-    "venue_id": 3,
-    "venue_name": "Park Square Live Music & Coffee",
-    "artist_id": 6,
-    "artist_name": "The Wild Sax Band",
-    "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    "start_time": "2035-04-08 20:00:00.000"
-  }, {
-    "venue_id": 3,
-    "venue_name": "Park Square Live Music & Coffee",
-    "artist_id": 6,
-    "artist_name": "The Wild Sax Band",
-    "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    "start_time": "2035-04-15 20:00:00.000"
-  }]
+  shows_raw = Show.query.all()
+  print(shows_raw)
+  shows = []
+  try:
+    for show in shows_raw:
+      show_dict = show.get_show_dict()
+      if show_dict:
+        shows.append(show_dict)  
+  except Exception as e:
+    pass
+    
+  # if len(shows) == 0:
+  #   abort(404)
+  data = shows
+  # print(data)
+  # data=[{
+  #   "venue_id": 1,
+  #   "venue_name": "The Musical Hop",
+  #   "artist_id": 4,
+  #   "artist_name": "Guns N Petals",
+  #   "artist_image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80",
+  #   "start_time": "2019-05-21 21:30:00.000"
+  # }, {
+  #   "venue_id": 3,
+  #   "venue_name": "Park Square Live Music & Coffee",
+  #   "artist_id": 5,
+  #   "artist_name": "Matt Quevedo",
+  #   "artist_image_link": "https://images.unsplash.com/photo-1495223153807-b916f75de8c5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=334&q=80",
+  #   "start_time": "2019-06-15 23:00:00.000"
+  # }, {
+  #   "venue_id": 3,
+  #   "venue_name": "Park Square Live Music & Coffee",
+  #   "artist_id": 6,
+  #   "artist_name": "The Wild Sax Band",
+  #   "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
+  #   "start_time": "2035-04-01 20:00:00.000"
+  # }, {
+  #   "venue_id": 3,
+  #   "venue_name": "Park Square Live Music & Coffee",
+  #   "artist_id": 6,
+  #   "artist_name": "The Wild Sax Band",
+  #   "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
+  #   "start_time": "2035-04-08 20:00:00.000"
+  # }, {
+  #   "venue_id": 3,
+  #   "venue_name": "Park Square Live Music & Coffee",
+  #   "artist_id": 6,
+  #   "artist_name": "The Wild Sax Band",
+  #   "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
+  #   "start_time": "2035-04-15 20:00:00.000"
+  # }]
   return render_template('pages/shows.html', shows=data)
 
 @app.route('/shows/create')
