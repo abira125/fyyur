@@ -71,9 +71,6 @@ Highlight folders:
 * Models in `app.py` -- Defines the data models that set up the database tables.
 * `config.py` -- Stores configuration variables and instructions, separate from the main application code. This is where you will need to connect to the database.
 
-# Database Schema
-
-
 
 # Tech Stack
 * **HTML**, **CSS**, and **Javascript** with [Bootstrap 3](https://getbootstrap.com/docs/3.4/customize/) for our website's frontend
