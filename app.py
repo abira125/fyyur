@@ -15,7 +15,6 @@ from flask_wtf import Form
 from forms import *
 import config
 from flask_migrate import Migrate
-from sqlalchemy.sql.functions import func
 from datetime import datetime
 import traceback
 #----------------------------------------------------------------------------#
@@ -26,19 +25,31 @@ app = Flask(__name__)
 moment = Moment(app)
 app.config.from_object('config')
 
-# TODO: connect to a local postgresql database
+# Connect to a local postgresql database
 app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = config.SQLALCHEMY_TRACK_MODIFICATIONS
 
+# link app to SQLAlchemy
 db = SQLAlchemy(app)
 
+# flask migrate
 migrate = Migrate(app, db)
+
+# Global variables
+FUTURE = "future"
+PAST = "past"
 
 #----------------------------------------------------------------------------#
 # Models.
 #----------------------------------------------------------------------------#
 
+#------------------------------------------------
+# Venue Model
+
 class Venue(db.Model):
+    """
+    Model for Venue
+    """
     __tablename__ = 'venue'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -53,7 +64,7 @@ class Venue(db.Model):
     seeking_talent = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
     shows = db.relationship("Show", backref=db.backref('venues', lazy=True))
-    genres = db.relationship("VenueGenre", backref=db.backref('venues', lazy=True), passive_deletes=True) #, passive_deletes=True
+    genres = db.relationship("VenueGenre", backref=db.backref('venues', lazy=True), passive_deletes=True) # passive_deletes to go with ON DELETE CASCADE, see VenueGenres class
 
     def __init__(self, name, city, state, address, phone, facebook_link,\
                  website_link, image_link, seeking_talent, seeking_description):
@@ -67,24 +78,27 @@ class Venue(db.Model):
       self.image_link = image_link
       self.seeking_talent = seeking_talent
       self.seeking_description = seeking_description
-      
-    def get_past_shows(self):
+    
+    def get_shows(self, tense):
+      """
+      Iterates through the list of shows related to this venue and gets the future show details using backref
+      tense
+
+      Parameters:
+        tense (str): denotes whether the details are required for future or past shows
+
+      Returns:
+        shows(list): shows with details about start_time and artists 
+      """
       shows = []
+      shows_raw = []
       try:
-        shows_raw = list(filter(lambda x: x.start_time < datetime.now(), self.shows))
-        for show in shows_raw:
-          shows.append({'artist_id': show.artists.id,\
-                        'artist_name': show.artists.name,\
-                        'artist_image_link': show.artists.image_link,\
-                        'start_time': show.start_time.isoformat()})
-      except Exception as e:
-        raise e
-      return shows
-      
-    def get_future_shows(self):
-      shows = []
-      try:
-        shows_raw = list(filter(lambda x: x.start_time > datetime.now(), self.shows))
+        if tense == FUTURE:
+          shows_raw = list(filter(lambda x: x.start_time > datetime.now(), self.shows))
+        elif tense == PAST:
+          shows_raw = list(filter(lambda x: x.start_time < datetime.now(), self.shows))
+        else:
+          raise ValueError("Invalid tense for shows")
         for show in shows_raw:
           shows.append({'artist_id': show.artists.id,\
                         'artist_name': show.artists.name,\
@@ -96,6 +110,9 @@ class Venue(db.Model):
       
     
     def get_genres(self):
+      """
+      Get genre names for the associated genres
+      """
       genres = []
       try:
         genres = [genre.name for genre in self.genres]
@@ -105,10 +122,13 @@ class Venue(db.Model):
 
     
     def format_all(self):
+      """
+      Format or prepare data as per the requirement
+      """
       venue_dict = {}
       try:
-        upcoming_shows = self.get_future_shows()
-        past_shows = self.get_past_shows()
+        upcoming_shows = self.get_shows(FUTURE)
+        past_shows = self.get_shows(PAST)
         genres = self.get_genres()
         venue_dict = {
           'id': self.id, 
@@ -133,26 +153,27 @@ class Venue(db.Model):
       return venue_dict
 
     def create(self, genres):
-      is_created = False
+      """
+      Create a Venue resource and persist to DB
+      """
       try:
         for genre in genres:
           vg = VenueGenre(name=genre)
           self.genres.append(vg)
         db.session.add(self)
         db.session.commit()
-        is_created = True
       except Exception as e:
         db.session.rollback()
         raise e
       finally:
         db.session.close()
-      return is_created
-    
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
+
+#------------------------------------------------
+# Show Model
 
 class Show(db.Model): 
     """
-    Follows association object pattern
+    Show model associating Venue and Artist model using association object pattern
     """
     __tablename__ = 'show'
 
@@ -167,6 +188,9 @@ class Show(db.Model):
       self.start_time = start_time
       
     def get_show_dict(self):
+      """
+      Prepares show dictionary for get endpoint
+      """
       show_dict = {}
       try:
         show_dict = {
@@ -182,6 +206,9 @@ class Show(db.Model):
       return show_dict
 
     def create(self):
+      """
+      Creates a show and persists to DB
+      """
       try:
         db.session.add(self)
         db.session.commit()
@@ -191,7 +218,14 @@ class Show(db.Model):
       finally:
         db.session.close()
 
+#------------------------------------------------
+# Artist Model
+
 class Artist(db.Model):
+    """
+    Artist model
+    """
+    
     __tablename__ = 'artist'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -206,8 +240,6 @@ class Artist(db.Model):
     seeking_description = db.Column(db.String(200))
     genres = db.relationship("ArtistGenre", backref=db.backref('artists', lazy=True), passive_deletes=True)
 
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
     def __init__(self, name, city, state, phone, facebook_link,\
                  website_link, image_link, seeking_venue, seeking_description):
       self.name = name
@@ -220,33 +252,40 @@ class Artist(db.Model):
       self.seeking_venue = seeking_venue
       self.seeking_description = seeking_description
 
-    def get_future_shows(self):
-      future_shows = []
+    def get_shows(self, tense):
+      """
+      Iterates through the list of shows related to this venue and gets the future show details using backref
+      tense
+
+      Parameters:
+        tense (str): denotes whether the details are required for future or past shows
+
+      Returns:
+        shows(list): shows with details about start_time and venues
+      """
+      shows = []
+      shows_raw = []
       try:
-        shows_raw = list(filter(lambda show: show.start_time > datetime.now(), self.shows))
+        if tense == FUTURE:
+          shows_raw = list(filter(lambda x: x.start_time > datetime.now(), self.shows))
+        elif tense == PAST:
+          shows_raw = list(filter(lambda x: x.start_time < datetime.now(), self.shows))
+        else:
+          raise ValueError("Invalid tense for shows")
         for show in shows_raw:
-          future_shows.append({'venue_id': show.venues.id,\
-                          'venue_name': show.venues.name,\
-                          'venue_image_link': show.venues.image_link,\
-                          'start_time': show.start_time.isoformat()})
+          shows.append({'venue_id': show.venues.id,\
+                        'venue_name': show.venues.name,\
+                        'venue_image_link': show.venues.image_link,\
+                        'start_time': show.start_time.isoformat()})  
       except Exception as e:
-        raise e
-      return future_shows
-      
-    def get_past_shows(self):
-      future_shows = []
-      try:
-        shows_raw = list(filter(lambda show: show.start_time < datetime.now(), self.shows))
-        for show in shows_raw:
-          future_shows.append({'venue_id': show.venues.id,\
-                          'venue_name': show.venues.name,\
-                          'venue_image_link': show.venues.image_link,\
-                          'start_time': show.start_time.isoformat()})
-      except Exception as e:
-        raise e
-      return future_shows  
+        raise e      
+      return shows 
+
   
     def get_genres(self):
+      """
+      Get associated genre names 
+      """
       genres = []
       try:
         genres = [genre.name for genre in self.genres]
@@ -255,10 +294,12 @@ class Artist(db.Model):
       return genres 
 
     def format_all(self):
+      """
+      Format or prepare data as per the requirement
+      """
       artist_dict = {}
       try:
-        upcoming_shows = self.get_future_shows()
-        past_shows = self.get_past_shows()
+        upcoming_shows, past_shows = self.get_shows(FUTURE), self.get_shows(PAST)
         genres = self.get_genres()
         artist_dict = {
           'id': self.id, 
@@ -282,34 +323,42 @@ class Artist(db.Model):
       return artist_dict
 
     def create(self, genres):
-      is_created = False
+      """
+      Create resource for artist and persist
+      """
       try:
         for genre in genres:
           ag = ArtistGenre(name=genre)
           self.genres.append(ag)
         db.session.add(self)
         db.session.commit()
-        is_created = True
       except Exception as e:
         db.session.rollback()
         raise e
       finally:
         db.session.close()
-      return is_created
 
-
-
+#------------------------------------------------
+# VenueGenre Model
 class VenueGenre(db.Model):
+    """
+    VenueGenres model stores genres for Venues. This was necessary to maintain first normal form. The relationship between Venue and Genre has been modelled as a one to many relationship   
+    """
+    # TODO: Model the relationship between Venue and Genre as a many to many relationship
     __tablename__ = 'venuegenre'
-    venue_id = db.Column(db.Integer, db.ForeignKey('venue.id', ondelete='CASCADE'), primary_key=True)
+    venue_id = db.Column(db.Integer, db.ForeignKey('venue.id', ondelete='CASCADE'), primary_key=True) # ondelete='CASCADE' preferred over ORM based delete cascade as this is native to db
     name = db.Column(db.String(30), nullable=False, primary_key=True)
 
+#------------------------------------------------
+# ArtistGenre Model
 class ArtistGenre(db.Model):
+    """
+    ArtistGenres model stores genres for Artists. This was necessary to maintain first normal form. The relationship between Aritist and Genre has been modelled as a one to many relationship   
+    """
+    # TODO: Model the relationship between Artist and Genre as a many to many relationship
     __tablename__ = 'artistgenre'
     artist_id = db.Column(db.Integer, db.ForeignKey('artist.id', ondelete='CASCADE'), primary_key=True)
     name = db.Column(db.String(30), nullable=False, primary_key=True)
-
-# TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -331,8 +380,16 @@ app.jinja_env.filters['datetime'] = format_datetime
 # Utils.
 #----------------------------------------------------------------------------#
 
-
 def get_venues(venues_raw):
+  """
+  Groups the venues by city,state as required by the venues page
+
+  Parameters:
+    venues_raw (list): list of venue objects to be transformed
+  
+  Returns:
+    venues (list): Appropriately formatted venues, grouped by city and state
+  """
   venues = []
   try:
     #get distinct cities 
@@ -352,6 +409,15 @@ def get_venues(venues_raw):
   return venues
 
 def get_artists(artists_raw):
+  """
+  Formats the artists as required by the get artists endpoint
+
+  Parameters:
+    artists_raw (list): list of artist objects to be transformed
+  
+  Returns:
+    artists (list): Appropriately formatted artists
+  """
   artists = []
   try:
     for artist in artists_raw:
@@ -365,6 +431,14 @@ def get_artists(artists_raw):
 
 
 def update_genres_venue(new_genres, venue):
+  """
+  Updates genres for a venue with a new set of genres. Replaces the old genres with new 
+
+  Parameters:
+    new_genres (list): List of new genres
+    venue (Venue): Venue object that needs a genre update
+
+  """
   try:
     common_genres = []    # common between edit form and existing records  
     
@@ -385,6 +459,14 @@ def update_genres_venue(new_genres, venue):
     raise e
 
 def update_genres_artist(new_genres, artist):
+  """
+  Updates genres for an artist with a new set of genres. Replaces the old genres with new 
+
+  Parameters:
+    new_genres (list): List of new genres
+    artist (Artist): Artist object that needs a genre update
+
+  """
   try:
     common_genres = []    # common between edit form and existing records  
     
@@ -420,8 +502,9 @@ def index():
 
 @app.route('/venues')
 def venues():
-  # TODO: replace with real venues data.
-  #       num_shows should be aggregated based on number of upcoming shows per venue.
+  """
+  Get venues data
+  """
   try:
     result = Venue.query.all()
     data = get_venues(result)
@@ -434,9 +517,9 @@ def venues():
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-  # seach for Hop should return "The Musical Hop".
-  # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
+  """
+  Implement case-insensitive search on artists with partial string search.  
+  """
   try:
     search_term = request.form.get('search_term', '')
     results = Venue.query.order_by(Venue.id).filter(Venue.name.ilike('%{}%'.format(search_term))).all()
@@ -454,7 +537,6 @@ def search_venues():
                   "num_upcoming_shows": len(venue.get_future_shows())}\
                   for venue in results]
       }
-    print(response)
     return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
   except Exception as e:
     print("Error occurred while seraching for venues: ",e)
@@ -464,8 +546,10 @@ def search_venues():
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
-  # shows the venue page with the given venue_id
-  # TODO: replace with real venue data from the venues table, using venue_id
+  """
+  shows the venue page with the given venue_id
+  """
+  
   try:
     result = Venue.query.filter_by(id=venue_id).all()
     if len(result) == 0 :
@@ -484,11 +568,17 @@ def show_venue(venue_id):
 
 @app.route('/venues/create', methods=['GET'])
 def create_venue_form():
+  """
+  Get create venue form
+  """
   form = VenueForm()
   return render_template('forms/new_venue.html', form=form)
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
+  """
+  Submit new venue form and persist
+  """
   try:
     request.get_data()
     genres = request.form.getlist('genres')
@@ -499,32 +589,21 @@ def create_venue_submission():
                   facebook_link=venue_dict['facebook_link'],\
                   website_link=venue_dict['website_link'], image_link=venue_dict['image_link'],\
                   seeking_talent=seeking_talent, seeking_description=venue_dict['seeking_description'])
-    created = venue.create(genres)
-    if created:
-      flash('Venue ' + request.form['name'] + ' was successfully listed!')
+    venue.create(genres)
+    flash('Venue ' + request.form['name'] + ' was successfully listed!')
   except Exception as e:
     print("Error while creating new venue: ", e)
     print(traceback.format_exc())
     flash('An error occurred. Venue ' + request.form['name'] + ' could not be listed.')
     abort(500)
   return render_template('pages/home.html')
-  # TODO: insert form data as a new Venue record in the db, instead
-  # TODO: modify data to be the data object returned from db insertion
-
-  # # on successful db insert, flash success
-  # flash('Venue ' + request.form['name'] + ' was successfully listed!')
-  # # TODO: on unsuccessful db insert, flash an error instead.
-  # # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
-  # # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-  
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
-  # TODO: Complete this endpoint for taking a venue_id, and using
-  # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
-
-  # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
-  # clicking that button delete it from the db then redirect the user to the homepage
+  """
+  Deletes venue from DB
+  """
+  # TODO: Implement Delete Button on UI
   try:
     venue = Venue.query.get(venue_id)
     db.session.delete(venue)
@@ -544,7 +623,9 @@ def delete_venue(venue_id):
 #  ----------------------------------------------------------------
 @app.route('/artists')
 def artists():
-  # TODO: replace with real data returned from querying the database
+  """
+  Get artists
+  """
   try:
     result = Artist.query.with_entities(Artist.id,Artist.name).all()
     if len(result) == 0:
@@ -560,9 +641,9 @@ def artists():
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-  # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
-  # search for "band" should return "The Wild Sax Band".
+  """
+  Implements case insesitive search on artists with partial string search
+  """
   try:
     search_term = request.form.get('search_term', '')
     results = Artist.query.order_by(Artist.id).filter(Artist.name.ilike('%{}%'.format(search_term))).all()
@@ -589,8 +670,7 @@ def search_artists():
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
-  # shows the venue page with the given venue_id
-  # TODO: replace with real venue data from the venues table, using venue_id
+  """shows the venue page with the given venue_id"""
   try:
     result = Artist.query.filter_by(id=artist_id).all()
     if len(result) == 0:
@@ -608,6 +688,9 @@ def show_artist(artist_id):
 #  ----------------------------------------------------------------
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
+  """
+  Get data for edit artist page
+  """
   form = ArtistForm()
   try:
     result = Artist.query.filter_by(id=artist_id).all()
@@ -638,10 +721,10 @@ def edit_artist(artist_id):
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
-  # TODO: take values from the form submitted, and update existing
-  # artist record with ID <artist_id> using the new attributes
-   # TODO: take values from the form submitted, and update existing
-  # artist record with ID <artist_id> using the new attributes
+  """
+  Takes values from the form submitted, and updates existing
+  artist record with ID <artist_id> using the new attributes
+  """
   try:
       # get data from request
       request.get_data()
@@ -672,6 +755,9 @@ def edit_artist_submission(artist_id):
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
+  """
+  Get data for edit venue page
+  """
   form = VenueForm()
   try:
     result = Venue.query.filter_by(id=venue_id).all()
@@ -693,8 +779,6 @@ def edit_venue(venue_id):
       "seeking_description": data["seeking_description"],
       "image_link": data["image_link"]
     }
-    # TODO: populate form with values from venue with ID <venue_id>
-    print(venue)
     return render_template('forms/edit_venue.html', form=form, venue=venue)
   except Exception as e:
     print("Error occured while fetching data for venue ", e)
@@ -704,8 +788,10 @@ def edit_venue(venue_id):
 
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
-  # TODO: take values from the form submitted, and update existing
-  # venue record with ID <venue_id> using the new attributes
+  """
+  Takes values from the form submitted, and update existing
+  venue record with ID <venue_id> using the new attributes
+  """
   try:
       # get data from request
       request.get_data()
@@ -739,20 +825,17 @@ def edit_venue_submission(venue_id):
 
 @app.route('/artists/create', methods=['GET'])
 def create_artist_form():
+  """
+  Get artist form
+  """
   form = ArtistForm()
   return render_template('forms/new_artist.html', form=form)
 
 @app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
-  # called upon submitting the new artist listing form
-  # TODO: insert form data as a new Venue record in the db, instead
-  # TODO: modify data to be the data object returned from db insertion
-
-  # on successful db insert, flash success
-  # flash('Artist ' + request.form['name'] + ' was successfully listed!')
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
-
+  """
+  create artist on form submission
+  """
   try:
     request.get_data()
     genres = request.form.getlist('genres')
@@ -763,9 +846,8 @@ def create_artist_submission():
                   facebook_link=artist_dict['facebook_link'],\
                   website_link=artist_dict['website_link'], image_link=artist_dict['image_link'],\
                   seeking_venue=seeking_venue, seeking_description=artist_dict['seeking_description'])
-    created = artist.create(genres)
-    if created:
-      flash('artist ' + request.form['name'] + ' was successfully listed!')
+    artist.create(genres)
+    flash('artist ' + request.form['name'] + ' was successfully listed!')
   except Exception as e:
     print("Error while creating new artist: ", e)
     print(traceback.format_exc())
@@ -780,95 +862,53 @@ def create_artist_submission():
 
 @app.route('/shows')
 def shows():
-  # displays list of shows at /shows
-  # TODO: replace with real venues data.
-  #       num_shows should be aggregated based on number of upcoming shows per venue.
+  """Displays list of shows at /shows"""
   shows_raw = Show.query.all()
   print(shows_raw)
-  shows = []
+  data = []
   try:
     for show in shows_raw:
       show_dict = show.get_show_dict()
       if show_dict:
-        shows.append(show_dict)  
+        data.append(show_dict)  
+    if len(data) == 0:
+      print("No records found for shows")
+      abort(404)
   except Exception as e:
-    pass
-    
-  # if len(shows) == 0:
-  #   abort(404)
-  data = shows
-  # print(data)
-  # data=[{
-  #   "venue_id": 1,
-  #   "venue_name": "The Musical Hop",
-  #   "artist_id": 4,
-  #   "artist_name": "Guns N Petals",
-  #   "artist_image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80",
-  #   "start_time": "2019-05-21 21:30:00.000"
-  # }, {
-  #   "venue_id": 3,
-  #   "venue_name": "Park Square Live Music & Coffee",
-  #   "artist_id": 5,
-  #   "artist_name": "Matt Quevedo",
-  #   "artist_image_link": "https://images.unsplash.com/photo-1495223153807-b916f75de8c5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=334&q=80",
-  #   "start_time": "2019-06-15 23:00:00.000"
-  # }, {
-  #   "venue_id": 3,
-  #   "venue_name": "Park Square Live Music & Coffee",
-  #   "artist_id": 6,
-  #   "artist_name": "The Wild Sax Band",
-  #   "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-  #   "start_time": "2035-04-01 20:00:00.000"
-  # }, {
-  #   "venue_id": 3,
-  #   "venue_name": "Park Square Live Music & Coffee",
-  #   "artist_id": 6,
-  #   "artist_name": "The Wild Sax Band",
-  #   "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-  #   "start_time": "2035-04-08 20:00:00.000"
-  # }, {
-  #   "venue_id": 3,
-  #   "venue_name": "Park Square Live Music & Coffee",
-  #   "artist_id": 6,
-  #   "artist_name": "The Wild Sax Band",
-  #   "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-  #   "start_time": "2035-04-15 20:00:00.000"
-  # }]
+    print("Error occured in fetching shows: ",e)
+    print(traceback.format_exc())
+    abort(500)
   return render_template('pages/shows.html', shows=data)
 
 @app.route('/shows/create')
 def create_shows():
-  # renders form. do not touch.
+  """
+  Renders shows create form
+  """
   form = ShowForm()
   return render_template('forms/new_show.html', form=form)
 
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
-  # called to create new shows in the db, upon submitting new show listing form
-  # TODO: insert form data as a new Show record in the db, instead
-
+  """
+  Called to create new shows in the db, upon submitting new show listing form
+  """
+  
   try:
     request.get_data()
     show_dict = request.form.to_dict()
     print(show_dict)
     show = Show(venue_id=show_dict["venue_id"], artist_id=show_dict["artist_id"], start_time=show_dict["start_time"])
     show.create()
-    flash('Show was successfully listed!')  
+    flash('Show was successfully listed!')
+    return render_template('pages/home.html')  
   except Exception as e:
     print("Error in creating new show: ", e)
     print(traceback.format_exc())
     flash('An error occurred. Show could not be listed.')
     abort(500)
   
-  return render_template('pages/home.html')
   
-  # on successful db insert, flash success
-  flash('Show was successfully listed!')
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Show could not be listed.')
-  # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-  return render_template('pages/home.html')
-
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template('errors/404.html'), 404
