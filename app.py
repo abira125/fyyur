@@ -399,7 +399,7 @@ def get_venues(venues_raw):
       venue_dict = {'city':city, 'state': state, 'venues':[]}
       venues_in_city = [{'id': venue.id,\
                          'name': venue.name,\
-                         'num_upcoming_shows': len(venue.get_future_shows())}\
+                         'num_upcoming_shows': len(venue.get_shows(FUTURE))}\
                          for venue in venues_raw\
                          if venue.city==city and venue.state==state]
       venue_dict['venues'] = venues_in_city
@@ -661,7 +661,6 @@ def search_artists():
                   "num_upcoming_shows": len(artist.get_future_shows())}\
                   for artist in results]
       }
-    print(response)
     return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
   except Exception as e:
     print("Error occurred while seraching for artists: ",e)
@@ -712,7 +711,6 @@ def edit_artist(artist_id):
       "image_link": data["image_link"]
     }
     # TODO: populate form with values from artist with ID <artist_id>
-    print(artist)
     return render_template('forms/edit_artist.html', form=form, artist=artist)
   except Exception as e:
     print("Error occured while fetching data for artist ", e)
@@ -864,7 +862,6 @@ def create_artist_submission():
 def shows():
   """Displays list of shows at /shows"""
   shows_raw = Show.query.all()
-  print(shows_raw)
   data = []
   try:
     for show in shows_raw:
@@ -897,7 +894,6 @@ def create_show_submission():
   try:
     request.get_data()
     show_dict = request.form.to_dict()
-    print(show_dict)
     show = Show(venue_id=show_dict["venue_id"], artist_id=show_dict["artist_id"], start_time=show_dict["start_time"])
     show.create()
     flash('Show was successfully listed!')
