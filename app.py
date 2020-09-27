@@ -204,7 +204,7 @@ class Artist(db.Model):
     website_link = db.Column(db.String(120))
     seeking_venue = db.Column(db.Boolean, nullable=False, default=False)
     seeking_description = db.Column(db.String(200))
-    genres = db.relationship("ArtistGenre", backref=db.backref('artists', lazy=True))
+    genres = db.relationship("ArtistGenre", backref=db.backref('artists', lazy=True), passive_deletes=True)
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
@@ -225,7 +225,6 @@ class Artist(db.Model):
       try:
         shows_raw = list(filter(lambda show: show.start_time > datetime.now(), self.shows))
         for show in shows_raw:
-          venues = self.show.venue
           future_shows.append({'venue_id': show.venues.id,\
                           'venue_name': show.venues.name,\
                           'venue_image_link': show.venues.image_link,\
@@ -239,7 +238,6 @@ class Artist(db.Model):
       try:
         shows_raw = list(filter(lambda show: show.start_time < datetime.now(), self.shows))
         for show in shows_raw:
-          venues = self.show.venue
           future_shows.append({'venue_id': show.venues.id,\
                           'venue_name': show.venues.name,\
                           'venue_image_link': show.venues.image_link,\
