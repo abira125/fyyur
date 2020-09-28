@@ -25,9 +25,9 @@ app = Flask(__name__)
 moment = Moment(app)
 app.config.from_object('config')
 
-# Connect to a local postgresql database
-app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = config.SQLALCHEMY_TRACK_MODIFICATIONS
+# # Connect to a local postgresql database
+# app.config['SQLALCHEMY_DATABASE_URI'] = config.SQLALCHEMY_DATABASE_URI
+# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = config.SQLALCHEMY_TRACK_MODIFICATIONS
 
 # link app to SQLAlchemy
 db = SQLAlchemy(app)
