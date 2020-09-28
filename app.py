@@ -534,7 +534,7 @@ def search_venues():
         "count": len(results),
         "data": [{"id":venue.id,\
                   "name": venue.name,\
-                  "num_upcoming_shows": len(venue.get_future_shows())}\
+                  "num_upcoming_shows": len(venue.get_shows(FUTURE))}\
                   for venue in results]
       }
     return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
@@ -658,7 +658,7 @@ def search_artists():
         "count": len(results),
         "data": [{"id":artist.id,\
                   "name": artist.name,\
-                  "num_upcoming_shows": len(artist.get_future_shows())}\
+                  "num_upcoming_shows": len(artist.get_shows(FUTURE))}\
                   for artist in results]
       }
     return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
