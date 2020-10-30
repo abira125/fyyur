@@ -1,6 +1,8 @@
 # fyyur
 fyyur is a platform for musicians and venues to come together
 
+![Landing Page](docs/images/landing.PNG)
+
 # Getting Started
 First, [install Flask](http://flask.pocoo.org/docs/1.0/installation/#install-flask).
 
