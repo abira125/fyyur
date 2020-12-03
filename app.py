@@ -20,6 +20,7 @@ from flask_migrate import Migrate
 from datetime import datetime
 import traceback
 from model import setup_db, db, Venue, Show, Artist, VenueGenre, ArtistGenre
+from constants import FUTURE, PAST
 
 #----------------------------------------------------------------------------#
 # App Config.
@@ -33,10 +34,6 @@ setup_db(app)
 
 # flask migrate
 migrate = Migrate(app, db)
-
-# Global variables
-FUTURE = "future"
-PAST = "past"
 
 #----------------------------------------------------------------------------#
 # Filters.
